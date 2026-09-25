@@ -9,6 +9,7 @@ import { ArrowRightIcon, CloseIcon } from '@/components/icons';
 import { colors, shadows } from '@/constants/theme';
 import { useReaderActions } from '@/context/reader-context';
 import { useKeyboardVisible } from '@/hooks/use-keyboard-visible';
+import { addToLibrary, titleFromText } from '@/lib/library';
 
 export default function InsertTextScreen() {
   const reader = useReaderActions();
@@ -29,9 +30,14 @@ export default function InsertTextScreen() {
     }
   };
 
-  const read = () => {
-    if (!reader.loadText(text, 'Your text')) return;
-    router.replace('/reader');
+  const read = async () => {
+    try {
+      const item = await addToLibrary({ title: titleFromText(text), text, kind: 'text' });
+      if (!item || !reader.loadText(text, item.title, { id: item.id })) return;
+      router.replace('/reader');
+    } catch {
+      setHint('Could not save that text. Your device may be out of space.');
+    }
   };
 
   const canRead = !!text.trim();

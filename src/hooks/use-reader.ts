@@ -15,16 +15,19 @@ import {
 // instead of racing through words to catch up.
 const MAX_CATCH_UP_MS = 250;
 
-export type SavedReader = { wpm?: number; text?: string; label?: string; index?: number };
+/** What the reader starts from: the speed, and the library item open last (with its text). */
+export type InitialReader = { wpm?: number; id?: string; text?: string; label?: string; index?: number };
+/** What is persisted: the speed, and which library item is open and where. */
+export type SavedReader = { wpm: number; id?: string; index?: number };
 
-type Source = { words: string[]; text: string; label: string; isSample: boolean };
+type Source = { words: string[]; text: string; label: string; isSample: boolean; id?: string };
 
 type Options = {
   /** Shown when nothing else is loaded. */
   sampleText: string;
   /** Saved state to resume from. */
-  initial?: SavedReader;
-  /** Receives state to persist (debounced). `text` keeps the same string until the source changes. */
+  initial?: InitialReader;
+  /** Receives state to persist (debounced). */
   onSave?: (data: SavedReader) => void;
   /** Length of one countdown beat. */
   countdownMs?: number;
@@ -38,6 +41,7 @@ export function useReader({ sampleText, initial = {}, onSave, countdownMs = 1000
       text: (text ?? sampleText).trim(),
       label: text ? initial.label || 'Pasted' : 'Demo',
       isSample: !text,
+      id: text ? initial.id : undefined,
     };
   });
   const [index, setIndex] = useState(() => {
@@ -101,16 +105,14 @@ export function useReader({ sampleText, initial = {}, onSave, countdownMs = 1000
   }, [countdown, countdownMs, play]);
 
   // ── Persistence: on pause, speed or source change, and every 100 words while playing ──
-  // Built once per source: joining a long text on every save stalls playback.
-  const savedText = useMemo(() => (source.isSample ? undefined : source.words.join(' ').slice(0, 500000)), [source]);
   const saveBucket = playing ? Math.floor(index / 100) : index;
   useEffect(() => {
     const t = setTimeout(() => {
-      const data: SavedReader = source.isSample ? { wpm } : { wpm, label: source.label, index, text: savedText };
+      const data: SavedReader = source.id ? { wpm, id: source.id, index } : { wpm };
       onSaveRef.current?.(data);
     }, 800);
     return () => clearTimeout(t);
-  }, [wpm, source, savedText, playing, saveBucket]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [wpm, source, playing, saveBucket]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pause = useCallback(() => {
     if (playingRef.current) setStatus('Paused');
@@ -148,22 +150,30 @@ export function useReader({ sampleText, initial = {}, onSave, countdownMs = 1000
 
   const setWpm = useCallback((v: number) => setWpmState(clampWpm(v)), []);
 
-  // Returns false when the text has no words.
-  const loadText = useCallback((text: string, label: string, { sample = false } = {}) => {
+  // Returns false when the text has no words. `id` is the library item it came from, whose
+  // position is saved as it's read; `index` is where to resume.
+  const loadText = useCallback((text: string, label: string, { sample = false, id = undefined as string | undefined, index = 0 } = {}) => {
     const w = tokenize(text);
     if (!w.length) return false;
     setPlaying(false);
     setCountdown(null);
-    setSource({ words: w, text: text.trim(), label, isSample: sample });
-    setIndex(0);
+    setSource({ words: w, text: text.trim(), label, isSample: sample, id });
+    setIndex(index > 0 && index < w.length ? index : 0);
     setStatus('');
     return true;
   }, []);
 
+  // The library item that's loaded, read through a ref so `actions` stays stable.
+  const sourceRef = useRef(source);
+  useEffect(() => {
+    sourceRef.current = source;
+  });
+  const loadedId = useCallback(() => sourceRef.current.id, []);
+
   // Stable across words, for screens that only act on the reader (import, insert text).
   const actions = useMemo(
-    () => ({ play, pause, toggle, seekTo, restart, setWpm, loadText, startCountdown, cancelCountdown }),
-    [play, pause, toggle, seekTo, restart, setWpm, loadText, startCountdown, cancelCountdown]
+    () => ({ play, pause, toggle, seekTo, restart, setWpm, loadText, loadedId, startCountdown, cancelCountdown }),
+    [play, pause, toggle, seekTo, restart, setWpm, loadText, loadedId, startCountdown, cancelCountdown]
   );
 
   const done = index >= words.length;
