@@ -1,65 +1,33 @@
-/**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
- */
+// Design tokens, matching the web app's :root variables.
+export const colors = {
+  bgScreen: '#070707',
+  bgCard: '#171717',
+  bgCardMuted: '#262626',
 
-import '@/global.css';
+  textPrimary: '#FFFFFF',
+  textSecondary: '#B2B2B2',
+  textTertiary: '#7D7D7D',
 
-import { Platform } from 'react-native';
+  btnPrimaryBg: '#F3F3F3',
+  btnPrimaryFg: '#000000',
+  btnSecondaryBg: '#262626',
+  btnSecondaryFg: '#FFFFFF',
 
-export const Colors = {
-  light: {
-    text: '#000000',
-    background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
-  },
-  dark: {
-    text: '#ffffff',
-    background: '#000000',
-    backgroundElement: '#212225',
-    backgroundSelected: '#2E3135',
-    textSecondary: '#B0B4BA',
-  },
-} as const;
+  highlight: '#FF0000',
+  divider: 'rgba(255,255,255,0.10)',
+  border: 'rgba(255,255,255,0.15)',
+  focalLine: '#292929',
+};
 
-export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
+export const shadows = {
+  small: 'inset 6px 6px 6px rgba(255,255,255,0.03), inset -6px -6px 6px rgba(0,0,0,0.31)',
+  regular: 'inset 10px 10px 10px rgba(255,255,255,0.03), inset -10px -10px 10px rgba(0,0,0,0.31)',
+};
 
-export const Fonts = Platform.select({
-  ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
-    rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
-    mono: 'ui-monospace',
-  },
-  default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
-  },
-  web: {
-    sans: 'var(--font-display)',
-    serif: 'var(--font-serif)',
-    rounded: 'var(--font-rounded)',
-    mono: 'var(--font-mono)',
-  },
-});
+// Tinos is metrically compatible with Times New Roman, the web app's display font,
+// and looks the same on iOS and Android.
+export const fonts = {
+  display: 'Tinos_700Bold',
+};
 
-export const Spacing = {
-  half: 2,
-  one: 4,
-  two: 8,
-  three: 16,
-  four: 24,
-  five: 32,
-  six: 64,
-} as const;
-
-export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
-export const MaxContentWidth = 800;
+export const clamp = (min: number, v: number, max: number) => Math.max(min, Math.min(max, v));
