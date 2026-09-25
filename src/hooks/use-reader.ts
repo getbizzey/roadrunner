@@ -24,7 +24,7 @@ type Options = {
   sampleText: string;
   /** Saved state to resume from. */
   initial?: SavedReader;
-  /** Receives state to persist (debounced). */
+  /** Receives state to persist (debounced). `text` keeps the same string until the source changes. */
   onSave?: (data: SavedReader) => void;
   /** Length of one countdown beat. */
   countdownMs?: number;
@@ -101,16 +101,16 @@ export function useReader({ sampleText, initial = {}, onSave, countdownMs = 1000
   }, [countdown, countdownMs, play]);
 
   // ── Persistence: on pause, speed or source change, and every 100 words while playing ──
+  // Built once per source: joining a long text on every save stalls playback.
+  const savedText = useMemo(() => (source.isSample ? undefined : source.words.join(' ').slice(0, 500000)), [source]);
   const saveBucket = playing ? Math.floor(index / 100) : index;
   useEffect(() => {
     const t = setTimeout(() => {
-      const data: SavedReader = source.isSample
-        ? { wpm }
-        : { wpm, label: source.label, index, text: source.words.join(' ').slice(0, 500000) };
+      const data: SavedReader = source.isSample ? { wpm } : { wpm, label: source.label, index, text: savedText };
       onSaveRef.current?.(data);
     }, 800);
     return () => clearTimeout(t);
-  }, [wpm, source, playing, saveBucket]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [wpm, source, savedText, playing, saveBucket]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pause = useCallback(() => {
     if (playingRef.current) setStatus('Paused');

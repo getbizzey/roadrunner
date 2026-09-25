@@ -1,7 +1,7 @@
 // The RSVP stage: one word at a time, its focal letter pinned at FOCAL_RATIO of the width,
 // between two guide lines with ticks marking the focal column.
-import { memo, useRef, useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent, type TransformsStyle } from 'react-native';
+import { memo, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { Pressable, StyleSheet, Text, View, type TransformsStyle } from 'react-native';
 
 import { colors, fonts } from '@/constants/theme';
 import { FOCAL_RATIO, splitWord } from '@/lib/rsvp';
@@ -45,9 +45,9 @@ type Props = {
 
 export default memo(function Stage({ word, fontSize, countdown, status, onPress }: Props) {
   const [size, setSize] = useState({ width: 0, height: 0 });
-  // Measured widths live in a ref: most words need no scaling, so a new measurement only
-  // causes a re-render when the transform actually changes.
-  const widths = useRef<Widths>({ before: 0, focal: 0, after: 0 });
+  const beforeRef = useRef<Text>(null);
+  const focalRef = useRef<Text>(null);
+  const afterRef = useRef<Text>(null);
   const [transform, setTransform] = useState(NO_TRANSFORM);
 
   const { width: stageW, height: stageH } = size;
@@ -55,11 +55,15 @@ export default memo(function Stage({ word, fontSize, countdown, status, onPress 
   const sideW = stageW * 4;
   const { before, focal, after } = splitWord(word);
 
-  const measure = (part: keyof Widths, e: LayoutChangeEvent) => {
-    widths.current[part] = e.nativeEvent.layout.width;
-    const next = fitTransform(stageW, widths.current);
+  // Measure the word synchronously after layout, before it is painted. Unlike onLayout (one async
+  // event per part, each able to trigger its own re-render and a frame at the wrong scale), this
+  // costs at most one extra render per word, and only when the scale actually changes.
+  // offsetWidth is the untransformed layout width, so the current scale doesn't affect it.
+  useLayoutEffect(() => {
+    const width = (ref: typeof beforeRef) => ref.current?.offsetWidth ?? 0;
+    const next = fitTransform(stageW, { before: width(beforeRef), focal: width(focalRef), after: width(afterRef) });
     setTransform((prev) => (prev.key === next.key ? prev : next));
-  };
+  }, [word, fontSize, stageW]);
 
   const centerY = stageH / 2;
   const offset = fontSize * 0.95;
@@ -91,11 +95,11 @@ export default memo(function Stage({ word, fontSize, countdown, status, onPress 
           <CenterOn x={focalX} span={sideW + stageW}>
             <View style={[styles.row, { transform: transform.value }, counting && styles.hidden]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
               <View style={[styles.beforeSide, { width: sideW }]}>
-                <Text style={wordStyle} numberOfLines={1} onLayout={(e) => measure('before', e)}>{before}</Text>
+                <Text style={wordStyle} numberOfLines={1} ref={beforeRef}>{before}</Text>
               </View>
-              <Text style={[wordStyle, styles.focal]} onLayout={(e) => measure('focal', e)}>{focal}</Text>
+              <Text style={[wordStyle, styles.focal]} ref={focalRef}>{focal}</Text>
               <View style={[styles.afterSide, { width: sideW }]}>
-                <Text style={wordStyle} numberOfLines={1} onLayout={(e) => measure('after', e)}>{after}</Text>
+                <Text style={wordStyle} numberOfLines={1} ref={afterRef}>{after}</Text>
               </View>
             </View>
           </CenterOn>

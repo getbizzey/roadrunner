@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Readerrr",
+    "name": "Roadrunner",
     "slug": "roadrunner",
     "version": "1.0.0",
     "orientation": "default",
@@ -23,7 +23,7 @@
     "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.png",
-      "name": "Readerrr"
+      "name": "Roadrunner"
     },
     "plugins": [
       "expo-router",
