@@ -9,11 +9,12 @@
     "userInterfaceStyle": "dark",
     "backgroundColor": "#070707",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.b1zz3y.roadrunner"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#070707",
+        "backgroundColor": "#03898C",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -26,14 +27,20 @@
       "name": "Roadrunner"
     },
     "plugins": [
+      "./plugins/with-scene-lifecycle",
       "expo-router",
       "expo-font",
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#070707",
+          "backgroundColor": "#03747C",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "imageWidth": 160,
+          "ios": {
+            "image": "./assets/images/splash.png",
+            "enableFullScreenImage_legacy": true,
+            "resizeMode": "cover"
+          }
         }
       ]
     ],
