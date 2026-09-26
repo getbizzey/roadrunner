@@ -72,3 +72,9 @@ export const ArrowLeftIcon = ({ size = 24, color }: IconProps) => (
     <Path d="M20 12H4M11 5l-7 7 7 7" />
   </Svg>
 );
+
+export const SearchIcon = ({ size = 20, color }: IconProps) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.2} strokeLinecap="round">
+    <Path d="M10.5 18a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15zM16 16l5 5" />
+  </Svg>
+);

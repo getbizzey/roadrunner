@@ -1,10 +1,20 @@
 // Library home: import a file, import a book, or insert text, and everything imported so far.
 import { router } from 'expo-router';
-import { useCallback, useRef, useState, type ComponentType } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import Fuse from 'fuse.js';
+import { useCallback, useMemo, useRef, useState, type ComponentType } from 'react';
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BooksIcon, FileImportIcon, TextLinesIcon, type IconProps } from '@/components/icons';
+import { BooksIcon, CloseIcon, FileImportIcon, SearchIcon, TextLinesIcon, type IconProps } from '@/components/icons';
 import LibraryCard from '@/components/library-card';
 import TextExtractor from '@/components/text-extractor';
 import { colors, shadows } from '@/constants/theme';
@@ -51,6 +61,21 @@ export default function LibraryScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const library = useLibrary();
+  const [query, setQuery] = useState('');
+  // Forgiving about typos and word order; ties keep the library's most-recent-first order.
+  const fuse = useMemo(
+    () => new Fuse(library, { keys: ['title'], threshold: 0.4, ignoreLocation: true, ignoreDiacritics: true }),
+    [library]
+  );
+  const searching = query.trim().length > 0;
+  // Every word typed has to match somewhere in the title, in any order.
+  const results = useMemo(
+    () =>
+      searching
+        ? fuse.search({ $and: query.trim().split(/\s+/).map((word) => ({ title: word })) }).map((r) => r.item)
+        : library,
+    [fuse, library, query, searching]
+  );
 
   const importKind = async (kind: ImportKind) => {
     setError(null);
@@ -105,6 +130,35 @@ export default function LibraryScreen() {
         <Text style={styles.title} accessibilityRole="header">Reading Library</Text>
       </View>
 
+      <View style={styles.search}>
+        <SearchIcon color={colors.textTertiary} />
+        <TextInput
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Search"
+          placeholderTextColor={colors.textTertiary}
+          style={styles.searchInput}
+          selectionColor={colors.textPrimary}
+          keyboardAppearance="dark"
+          returnKeyType="search"
+          autoCorrect={false}
+          autoCapitalize="none"
+          clearButtonMode="never"
+          accessibilityLabel="Search your library"
+        />
+        {searching && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Clear search"
+            onPress={() => setQuery('')}
+            hitSlop={10}
+            style={styles.clear}
+          >
+            <CloseIcon size={12} color={colors.bgScreen} />
+          </Pressable>
+        )}
+      </View>
+
       <View style={styles.tiles}>
         <Tile label={'Import\nFile'} Icon={FileImportIcon} onPress={() => importKind('file')} disabled={!!busy} />
         <Tile label={'Import\nBook'} Icon={BooksIcon} onPress={() => importKind('book')} disabled={!!busy} />
@@ -126,14 +180,18 @@ export default function LibraryScreen() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <FlatList
-        data={library}
+        data={results}
         keyExtractor={(item) => item.id}
         numColumns={2}
         renderItem={({ item }) => <LibraryCard item={item} width={cardWidth} onPress={open} onLongPress={remove} />}
         ListHeaderComponent={header}
         ListEmptyComponent={
-          <Text style={[styles.statusText, styles.empty]}>Books, files and texts you import will show up here.</Text>
+          <Text style={[styles.statusText, styles.empty]}>
+            {searching ? `Nothing in your library matches "${query.trim()}".` : 'Books, files and texts you import will show up here.'}
+          </Text>
         }
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         columnWrapperStyle={styles.row}
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
@@ -150,7 +208,28 @@ const styles = StyleSheet.create({
   title: { fontSize: 18, fontWeight: '600', color: colors.textPrimary },
   list: { paddingHorizontal: PAD, width: '100%', maxWidth: MAX_WIDTH, alignSelf: 'center', gap: GAP },
   row: { gap: GAP },
-  tiles: { flexDirection: 'row', gap: 12, paddingTop: 12 },
+  search: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    height: 48,
+    paddingHorizontal: 16,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bgCard,
+    boxShadow: shadows.small,
+  },
+  searchInput: { flex: 1, height: '100%', fontSize: 17, color: colors.textPrimary, padding: 0 },
+  clear: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.textTertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tiles: { flexDirection: 'row', gap: 12, paddingTop: 16 },
   tile: {
     flex: 1,
     aspectRatio: 0.92,
