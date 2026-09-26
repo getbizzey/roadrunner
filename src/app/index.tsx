@@ -165,7 +165,7 @@ export default function LibraryScreen() {
         <Tile label={'Insert\nText'} Icon={TextLinesIcon} onPress={() => router.push('/insert')} disabled={!!busy} />
       </View>
 
-      <View style={styles.status} accessibilityLiveRegion="polite">
+      <View style={[styles.status, (busy || error) && styles.statusShown]} accessibilityLiveRegion="polite">
         {busy && (
           <View style={styles.busy}>
             <ActivityIndicator color={colors.textSecondary} />
@@ -245,7 +245,9 @@ const styles = StyleSheet.create({
   tileLabel: { fontSize: 15, lineHeight: 19, fontWeight: '500', textAlign: 'center', color: colors.btnPrimaryFg },
   pressed: { transform: [{ scale: 0.97 }] },
   disabled: { opacity: 0.6 },
-  status: { minHeight: 16, paddingVertical: 12, paddingHorizontal: 6, alignItems: 'center' },
+  // Collapses when empty so the list sits one gap below the tiles.
+  status: { paddingHorizontal: 6, alignItems: 'center' },
+  statusShown: { paddingVertical: 4 },
   empty: { paddingTop: 24, paddingHorizontal: 22 },
   busy: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   statusText: { fontSize: 14, color: colors.textTertiary, textAlign: 'center' },
