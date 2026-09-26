@@ -13,6 +13,7 @@ import Stage from '@/components/stage';
 import { clamp, colors, shadows } from '@/constants/theme';
 import { useReaderContext } from '@/context/reader-context';
 import { confirm } from '@/lib/confirm';
+import { getLibraryItem } from '@/lib/library';
 import { formatNumber } from '@/lib/rsvp';
 
 function CircleButton({ label, onPress, children }: { label: string; onPress: () => void; children: ReactNode }) {
@@ -93,6 +94,7 @@ export default function ReaderScreen() {
     cancelCountdown();
   }, [pause, cancelCountdown]);
 
+  const chapters = reader.source.id ? getLibraryItem(reader.source.id)?.chapters : undefined;
   const total = words.length;
   const done = index >= total;
   const running = playing || countdown !== null;
@@ -126,7 +128,7 @@ export default function ReaderScreen() {
           />
         ) : (
           <View style={styles.pageWrap}>
-            <PageView words={words} index={index} onWordPress={jumpTo} />
+            <PageView words={words} index={index} chapters={chapters} onWordPress={jumpTo} />
           </View>
         )}
       </View>

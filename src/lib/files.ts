@@ -4,7 +4,8 @@ import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
 import { Platform } from 'react-native';
 
-import { readEpub, type EpubCover } from '@/lib/epub';
+import { readEpub, type EpubChapter, type EpubCover } from '@/lib/epub';
+import { tokenize } from '@/lib/rsvp';
 
 const MAX_CHARS = 2_000_000;
 
@@ -39,17 +40,40 @@ function bytesToBase64(bytes: Uint8Array) {
   return btoa(bin);
 }
 
+/** Where a chapter starts, as a word index into the text. */
+export type ChapterMark = { title: string; index: number };
+
+// Joins the chapters' texts and notes the word each named chapter starts at. Files the table of
+// contents skips (a chapter split in two, say) belong to the chapter before them.
+function joinChapters(chapters: EpubChapter[], texts: string[]) {
+  const parts: string[] = [];
+  const marks: ChapterMark[] = [];
+  let words = 0;
+  chapters.forEach(({ title }, i) => {
+    const text = texts[i] || '';
+    if (title) {
+      // A chapter with no text of its own (a part title page that's an image) gives way to the next.
+      if (marks.at(-1)?.index === words) marks.pop();
+      marks.push({ title, index: words });
+    }
+    if (!text) return;
+    parts.push(text);
+    words += tokenize(text).length;
+  });
+  return { text: parts.join('\n\n'), chapters: marks.filter((m) => m.index < words) };
+}
+
 const stripExtension = (name: string) => name.replace(/\.[^.]+$/, '');
 
 /**
  * Opens the system file picker for a document ('file') or an EPUB ('book').
- * Resolves to { title, text, cover }, or null when cancelled.
+ * Resolves to { title, text, cover, chapters }, or null when cancelled.
  */
 export async function importDocument(
   kind: ImportKind,
   extractor: Extractor,
   onProgress?: OnProgress
-): Promise<{ title: string; text: string; cover: EpubCover | null } | null> {
+): Promise<{ title: string; text: string; cover: EpubCover | null; chapters?: ChapterMark[] } | null> {
   const result = await DocumentPicker.getDocumentAsync({ type: PICKER_TYPES[kind], copyToCacheDirectory: true });
   if (result.canceled || !result.assets?.length) return null;
   const asset = result.assets[0];
@@ -60,12 +84,14 @@ export async function importDocument(
   let title = stripExtension(name);
   let text: string;
   let cover: EpubCover | null = null;
+  let chapters: ChapterMark[] | undefined;
   if (ext === 'epub' || mime === 'application/epub+zip') {
     onProgress?.('Opening book…');
     const book = readEpub(await readBytes(asset));
     if (book.title) title = book.title;
     cover = book.cover;
-    text = await extractor.extract('book', JSON.stringify(book.chapters));
+    const texts: string[] = JSON.parse(await extractor.extract('book', JSON.stringify(book.chapters.map((c) => c.html))));
+    ({ text, chapters } = joinChapters(book.chapters, texts));
   } else if (ext === 'pdf' || mime === 'application/pdf') {
     onProgress?.('Reading PDF…');
     text = await extractor.extract('pdf', bytesToBase64(await readBytes(asset)), onProgress);
@@ -74,5 +100,5 @@ export async function importDocument(
   } else {
     text = await readText(asset);
   }
-  return { title, cover, text: text.length > MAX_CHARS ? text.slice(0, MAX_CHARS) : text };
+  return { title, cover, chapters, text: text.length > MAX_CHARS ? text.slice(0, MAX_CHARS) : text };
 }

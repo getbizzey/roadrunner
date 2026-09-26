@@ -4,7 +4,7 @@
 // functions can't be serialised with toString().
 //
 // Protocol: window.__extract({ id, kind: 'pdf' | 'html' | 'book', data }) — data is base64 for PDFs
-// and a JSON array of chapter XHTML strings for books.
+// and a JSON array of chapter XHTML strings for books (whose text is a JSON array of chapter texts).
 // Replies go through window.__extractSend({ id, text } | { id, error } | { id, progress }).
 
 export const EXTRACTOR_SOURCE = `
@@ -64,8 +64,9 @@ export const EXTRACTOR_SOURCE = `
       if (req.kind === 'pdf') {
         text = await pdfToText(base64ToBytes(req.data), function (progress) { send({ id: req.id, progress: progress }); });
       } else if (req.kind === 'book') {
-        // An EPUB's chapters, in reading order, as a JSON array of XHTML strings.
-        text = JSON.parse(req.data).map(htmlToText).map(function (t) { return t.trim(); }).filter(Boolean).join('\\n\\n');
+        // An EPUB's chapters, in reading order, as a JSON array of XHTML strings. Answers with a
+        // JSON array of their texts, so the caller knows where each chapter starts.
+        text = JSON.stringify(JSON.parse(req.data).map(function (html) { return htmlToText(html).trim(); }));
       } else {
         text = htmlToText(req.data);
       }

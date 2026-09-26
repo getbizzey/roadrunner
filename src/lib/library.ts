@@ -7,6 +7,7 @@ import { useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
 
 import type { EpubCover } from '@/lib/epub';
+import type { ChapterMark } from '@/lib/files';
 import { tokenize } from '@/lib/rsvp';
 
 export type LibraryKind = 'file' | 'book' | 'text';
@@ -24,6 +25,8 @@ export type LibraryItem = {
   readAt: number;
   /** Cover image file name, inside the library folder. */
   cover?: string;
+  /** Books only: where each chapter starts. */
+  chapters?: ChapterMark[];
 };
 
 const LIST_KEY = 'roadrunner.library';
@@ -70,10 +73,17 @@ export function coverUri(item: LibraryItem) {
   return item.cover && !isWeb ? new File(folder(), item.cover).uri : undefined;
 }
 
-type NewItem = { title: string; text: string; kind: LibraryKind; cover?: EpubCover | null; index?: number };
+type NewItem = {
+  title: string;
+  text: string;
+  kind: LibraryKind;
+  cover?: EpubCover | null;
+  chapters?: ChapterMark[];
+  index?: number;
+};
 
 /** Stores the text (and cover) and adds it to the top of the library. Null when the text has no words. */
-export async function addToLibrary({ title, text, kind, cover, index = 0 }: NewItem): Promise<LibraryItem | null> {
+export async function addToLibrary({ title, text, kind, cover, chapters, index = 0 }: NewItem): Promise<LibraryItem | null> {
   const words = tokenize(text).length;
   if (!words) return null;
   const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -95,7 +105,17 @@ export async function addToLibrary({ title, text, kind, cover, index = 0 }: NewI
   }
 
   const now = Date.now();
-  const item: LibraryItem = { id, title, kind, words, index: Math.min(index, words - 1), addedAt: now, readAt: now, cover: coverName };
+  const item: LibraryItem = {
+    id,
+    title,
+    kind,
+    words,
+    index: Math.min(index, words - 1),
+    addedAt: now,
+    readAt: now,
+    cover: coverName,
+    chapters: chapters?.length ? chapters : undefined,
+  };
   commit([item, ...items]);
   return item;
 }
