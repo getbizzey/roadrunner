@@ -52,6 +52,15 @@ export const TextLinesIcon = ({ size = 26, color }: IconProps) => (
   </Svg>
 );
 
+// A page with lines of text over a second page: the title header of a document.
+export const DocumentIcon = ({ size = 28, color }: IconProps) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M6 3h9a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
+    <Path d="M20 7v12a3 3 0 0 1-3 3" />
+    <Path d="M7.5 7.5h6M7.5 11h6M7.5 14.5h6M7.5 18h3" />
+  </Svg>
+);
+
 export const ArrowRightIcon = ({ size = 24, color }: IconProps) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
     <Path d="M4 12h16M13 5l7 7-7 7" />

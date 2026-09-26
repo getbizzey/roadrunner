@@ -128,7 +128,13 @@ export default function ReaderScreen() {
           />
         ) : (
           <View style={styles.pageWrap}>
-            <PageView words={words} index={index} chapters={chapters} onWordPress={jumpTo} />
+            <PageView
+              words={words}
+              index={index}
+              title={reader.source.id ? reader.source.label : undefined}
+              chapters={chapters}
+              onWordPress={jumpTo}
+            />
           </View>
         )}
       </View>

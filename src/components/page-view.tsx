@@ -1,9 +1,11 @@
 // The text as a page: read words grey, the rest white, the current word with its focal letter
 // in red. Tap a word to jump to it; swipe left or right to turn the page. In a book, the chapter's
-// name heads each page and every chapter starts on a new page.
+// name heads each page and every chapter starts on a new page; anything else (and a book's pages
+// before its first chapter) is headed by its title.
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { StyleSheet, Text, View, type GestureResponderEvent, type ViewProps } from 'react-native';
 
+import { DocumentIcon } from '@/components/icons';
 import { colors, fonts } from '@/constants/theme';
 import type { ChapterMark } from '@/lib/files';
 import { splitWord, tokenize } from '@/lib/rsvp';
@@ -15,8 +17,9 @@ const SWIPE_MIN = 40;
 const SAMPLE = 'Reading is different. The more complete ideas you take in, the more knowledge you have to draw from.';
 // Word widths are estimated from an average, so leave room for wide words.
 const WIDTH_SAFETY = 0.93;
-// The chapter header is one line tall whatever the name, so pages can be laid out ahead.
-const HEADER_HEIGHT = 88;
+// The chapter header is one line tall whatever the name, so pages can be laid out ahead. The title
+// header's height is measured, as the title can take two lines.
+const CHAPTER_HEADER_HEIGHT = 88;
 const NO_CHAPTERS: ChapterMark[] = [];
 
 // The chapter that word i is in, if any.
@@ -30,12 +33,18 @@ function chapterAt(chapters: ChapterMark[], i: number) {
 }
 
 // Splits the text into pages by simulating line wrapping. Returns each page's first word index.
-function paginate(words: string[], charW: number, width: number, height: number, chapters: ChapterMark[]) {
+// `headerFrom(i)` is the height of the header on a page starting at word i.
+function paginate(
+  words: string[],
+  charW: number,
+  width: number,
+  height: number,
+  chapters: ChapterMark[],
+  headerFrom: (i: number) => number
+) {
   const lineW = width * WIDTH_SAFETY;
   const breaks = new Set(chapters.map((c) => c.index));
-  // Pages inside a chapter lose the header's height to it.
-  const linesFrom = (i: number) =>
-    Math.max(1, Math.floor((height - (chapterAt(chapters, i) ? HEADER_HEIGHT : 0)) / LINE_HEIGHT));
+  const linesFrom = (i: number) => Math.max(1, Math.floor((height - headerFrom(i)) / LINE_HEIGHT));
   const starts = [0];
   let linesPerPage = linesFrom(0);
   let line = 1;
@@ -93,19 +102,52 @@ function repeatedTitle(words: string[], chapter: ChapterMark) {
   return n;
 }
 
-type Props = { words: string[]; index: number; chapters?: ChapterMark[]; onWordPress: (i: number) => void };
+function ChapterHeader({ title }: { title: string }) {
+  return (
+    <View style={styles.chapter} accessibilityRole="header">
+      <Text style={styles.chapterLabel}>Chapter</Text>
+      <Text style={styles.chapterTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+        {title}
+      </Text>
+      <View style={styles.chapterRule} />
+    </View>
+  );
+}
 
-export default function PageView({ words, index, chapters = NO_CHAPTERS, onWordPress }: Props) {
+function TitleHeader({ title }: { title: string }) {
+  return (
+    <View style={styles.title} accessibilityRole="header">
+      <DocumentIcon color={colors.textPrimary} />
+      <Text style={styles.titleText} numberOfLines={2}>
+        {title}
+      </Text>
+    </View>
+  );
+}
+
+type Props = {
+  words: string[];
+  index: number;
+  /** Heads pages that aren't in a chapter. */
+  title?: string;
+  chapters?: ChapterMark[];
+  onWordPress: (i: number) => void;
+};
+
+export default function PageView({ words, index, title, chapters = NO_CHAPTERS, onWordPress }: Props) {
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   const [charW, setCharW] = useState(0);
+  const [titleH, setTitleH] = useState(0);
   // Pages turned away from the current word; resets whenever the reading position moves.
   const [turn, setTurn] = useState({ index, offset: 0 });
   const touchStart = useRef<{ x: number; y: number } | null>(null);
 
-  const starts = useMemo(
-    () => (size && charW ? paginate(words, charW, size.width, size.height, chapters) : [0]),
-    [words, charW, size, chapters]
-  );
+  const ready = size && charW && (!title || titleH);
+  const starts = useMemo(() => {
+    if (!ready) return [0];
+    const headerFrom = (i: number) => (chapterAt(chapters, i) ? CHAPTER_HEADER_HEIGHT : title ? titleH : 0);
+    return paginate(words, charW, size.width, size.height, chapters, headerFrom);
+  }, [ready, words, charW, size, chapters, title, titleH]);
 
   const current = pageOf(starts, Math.min(index, words.length - 1));
   const offset = turn.index === index ? turn.offset : 0;
@@ -180,16 +222,17 @@ export default function PageView({ words, index, chapters = NO_CHAPTERS, onWordP
           {SAMPLE}
         </Text>
       </View>
-      {chapter && (
-        <View style={styles.header} accessibilityRole="header">
-          <Text style={styles.headerLabel}>Chapter</Text>
-          <Text style={styles.headerTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-            {chapter.title}
-          </Text>
-          <View style={styles.headerRule} />
+      {!!title && (
+        <View style={styles.measureHeader} onLayout={(e) => setTitleH(e.nativeEvent.layout.height)}>
+          <TitleHeader title={title} />
         </View>
       )}
-      {charW > 0 && <Text style={styles.text}>{spans}</Text>}
+      {ready ? (
+        <>
+          {chapter ? <ChapterHeader title={chapter.title} /> : !!title && <TitleHeader title={title} />}
+          <Text style={styles.text}>{spans}</Text>
+        </>
+      ) : null}
     </View>
   );
 }
@@ -206,9 +249,10 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     includeFontPadding: false,
   },
-  header: { height: HEADER_HEIGHT, justifyContent: 'flex-end' },
-  headerLabel: { fontSize: 12, lineHeight: 16, letterSpacing: 1.5, color: colors.textTertiary },
-  headerTitle: {
+  measureHeader: { position: 'absolute', top: 0, left: 0, right: 0, opacity: 0, pointerEvents: 'none' },
+  chapter: { height: CHAPTER_HEADER_HEIGHT, justifyContent: 'flex-end' },
+  chapterLabel: { fontSize: 12, lineHeight: 16, letterSpacing: 1.5, color: colors.textTertiary },
+  chapterTitle: {
     fontFamily: fonts.display,
     fontSize: 28,
     lineHeight: 34,
@@ -216,7 +260,17 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     includeFontPadding: false,
   },
-  headerRule: { height: 1, marginTop: 12, marginBottom: 18, backgroundColor: colors.divider },
+  chapterRule: { height: 1, marginTop: 12, marginBottom: 18, backgroundColor: colors.divider },
+  title: { alignItems: 'center', gap: 14, paddingBottom: 32 },
+  titleText: {
+    fontSize: 17,
+    lineHeight: 23,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    textAlign: 'center',
+    textTransform: 'uppercase',
+    color: colors.textPrimary,
+  },
   read: { color: '#6E6E6E' },
   focal: { color: colors.highlight },
 });
