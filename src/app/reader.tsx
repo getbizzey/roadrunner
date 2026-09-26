@@ -139,6 +139,8 @@ export default function ReaderScreen() {
             countdown={countdown}
             status={status}
             onPress={reader.toggle}
+            onHold={reader.hold}
+            onRelease={reader.release}
           />
         ) : (
           <View style={styles.pageWrap}>

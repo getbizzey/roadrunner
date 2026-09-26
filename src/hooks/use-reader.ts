@@ -51,6 +51,8 @@ export function useReader({ sampleText, initial = {}, onSave, countdownMs = 1000
   const [wpm, setWpmState] = useState(() => clampWpm(initial.wpm || WPM_DEFAULT));
   const [playing, setPlaying] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
+  // Playback suspended while the stage is held down; `playing` stays true so the stage stays up.
+  const [held, setHeld] = useState(false);
   const [status, setStatus] = useState('');
 
   const { words } = source;
@@ -68,7 +70,7 @@ export function useReader({ sampleText, initial = {}, onSave, countdownMs = 1000
 
   // ── Playback loop: show the current word for its interval, then advance ──
   useEffect(() => {
-    if (!playing || index >= words.length) return;
+    if (!playing || held || index >= words.length) return;
     // Time each word from when it was due, not from when this render finished, so render time
     // doesn't add up word after word. Speed is read from a ref so dragging the slider doesn't
     // restart the current word.
@@ -82,12 +84,13 @@ export function useReader({ sampleText, initial = {}, onSave, countdownMs = 1000
       if (index + 1 >= words.length) setPlaying(false);
     }, Math.max(0, end - now));
     return () => clearTimeout(t);
-  }, [playing, index, words]);
+  }, [playing, held, index, words]);
 
   // ── Actions ──
   const play = useCallback(() => {
     setIndex((i) => (i >= words.length ? 0 : i));
     setStatus('');
+    setHeld(false);
     setPlaying(true);
   }, [words.length]);
 
@@ -117,7 +120,15 @@ export function useReader({ sampleText, initial = {}, onSave, countdownMs = 1000
   const pause = useCallback(() => {
     if (playingRef.current) setStatus('Paused');
     setPlaying(false);
+    setHeld(false);
   }, []);
+
+  // Hold pauses only while pressed; release picks up again at the word it stopped on. A stall
+  // longer than MAX_CATCH_UP_MS restarts timing, so the held word gets its full interval again.
+  const hold = useCallback(() => {
+    if (playingRef.current) setHeld(true);
+  }, []);
+  const release = useCallback(() => setHeld(false), []);
 
   const cancelCountdown = useCallback(() => setCountdown(null), []);
 
@@ -156,6 +167,7 @@ export function useReader({ sampleText, initial = {}, onSave, countdownMs = 1000
     const w = tokenize(text);
     if (!w.length) return false;
     setPlaying(false);
+    setHeld(false);
     setCountdown(null);
     setSource({ words: w, text: text.trim(), label, isSample: sample, id });
     setIndex(index > 0 && index < w.length ? index : 0);
@@ -172,8 +184,8 @@ export function useReader({ sampleText, initial = {}, onSave, countdownMs = 1000
 
   // Stable across words, for screens that only act on the reader (import, insert text).
   const actions = useMemo(
-    () => ({ play, pause, toggle, seekTo, restart, setWpm, loadText, loadedId, startCountdown, cancelCountdown }),
-    [play, pause, toggle, seekTo, restart, setWpm, loadText, loadedId, startCountdown, cancelCountdown]
+    () => ({ play, pause, hold, release, toggle, seekTo, restart, setWpm, loadText, loadedId, startCountdown, cancelCountdown }),
+    [play, pause, hold, release, toggle, seekTo, restart, setWpm, loadText, loadedId, startCountdown, cancelCountdown]
   );
 
   const done = index >= words.length;
@@ -186,8 +198,9 @@ export function useReader({ sampleText, initial = {}, onSave, countdownMs = 1000
     timeLeft: done ? 'Done' : formatDuration(secondsLeft(weightsFrom, index, wpm)) + ' left',
     wpm,
     playing,
+    held,
     countdown,
-    status,
+    status: held ? 'Paused' : status,
     ...actions,
     actions,
   };

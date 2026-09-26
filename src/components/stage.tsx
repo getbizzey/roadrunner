@@ -41,9 +41,13 @@ type Props = {
   countdown: number | null;
   status: string;
   onPress: () => void;
+  /** Long press: pause while held. */
+  onHold: () => void;
+  /** End of any press: resume if held. */
+  onRelease: () => void;
 };
 
-export default memo(function Stage({ word, fontSize, countdown, status, onPress }: Props) {
+export default memo(function Stage({ word, fontSize, countdown, status, onPress, onHold, onRelease }: Props) {
   const [size, setSize] = useState({ width: 0, height: 0 });
   const beforeRef = useRef<Text>(null);
   const focalRef = useRef<Text>(null);
@@ -75,12 +79,16 @@ export default memo(function Stage({ word, fontSize, countdown, status, onPress 
     <Pressable
       style={styles.stage}
       onPress={onPress}
+      onLongPress={onHold}
+      onPressOut={onRelease}
+      delayLongPress={300}
       onLayout={(e) => {
         const { width, height } = e.nativeEvent.layout;
         setSize((prev) => (prev.width === width && prev.height === height ? prev : { width, height }));
       }}
       accessibilityRole="button"
       accessibilityLabel="Reader. Tap to pause or resume."
+      accessibilityHint="Touch and hold to pause until you let go."
     >
       {stageW > 0 && (
         <>
