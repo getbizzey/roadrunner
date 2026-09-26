@@ -1,6 +1,5 @@
 import { Tinos_700Bold, useFonts } from '@expo-google-fonts/tinos';
 import { Stack } from 'expo-router';
-import { DarkTheme, ThemeProvider } from 'expo-router/react-navigation';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -26,23 +25,21 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider style={{ backgroundColor: colors.bgScreen }}>
-      <ThemeProvider value={DarkTheme}>
-        <ReaderProvider>
-          <HideSplash />
-          <StatusBar style="light" />
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bgScreen } }}>
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="insert" options={{ presentation: 'modal' }} />
-            {/* iOS 26 turns on a full-screen back swipe by default. On the reader, horizontal drags
-                belong to the speed slider and page turns, so only the edge swipe goes back. The
-                native gesture claims the touch before JS sees it, so this can't be toggled per drag. */}
-            <Stack.Screen
-              name="reader"
-              options={{ animation: 'fade', animationDuration: 260, fullScreenGestureEnabled: false }}
-            />
-          </Stack>
-        </ReaderProvider>
-      </ThemeProvider>
+      <ReaderProvider>
+        <HideSplash />
+        <StatusBar style="light" />
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bgScreen } }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="insert" options={{ presentation: 'modal' }} />
+          {/* iOS 26 turns on a full-screen back swipe by default. On the reader, horizontal drags
+              belong to the speed slider and page turns, so only the edge swipe goes back. The
+              native gesture claims the touch before JS sees it, so this can't be toggled per drag. */}
+          <Stack.Screen
+            name="reader"
+            options={{ animation: 'fade', animationDuration: 260, fullScreenGestureEnabled: false }}
+          />
+        </Stack>
+      </ReaderProvider>
     </SafeAreaProvider>
   );
 }
