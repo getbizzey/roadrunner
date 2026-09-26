@@ -5,11 +5,9 @@ import { AccessibilityInfo, AppState } from 'react-native';
 
 import { SAMPLE_TEXT } from '@/constants/sample-text';
 import { useReader, type InitialReader, type Reader, type ReaderActions, type SavedReader } from '@/hooks/use-reader';
-import { addToLibrary, getLibraryItem, loadLibrary, readLibraryText, titleFromText, updateProgress } from '@/lib/library';
+import { getLibraryItem, loadLibrary, readLibraryText, updateProgress } from '@/lib/library';
 
 const STORE_KEY = 'roadrunner.reader';
-// Older versions kept one text here, outside the library.
-const LEGACY_TEXT_KEY = 'roadrunner.reader.text';
 const ReaderContext = createContext<Reader | null>(null);
 const ActionsContext = createContext<ReaderActions | null>(null);
 
@@ -26,25 +24,14 @@ function save({ wpm, id, index }: SavedReader) {
   if (id && index !== undefined) updateProgress(id, index);
 }
 
-type Stored = { wpm?: number; id?: string; text?: string; label?: string; index?: number };
+type Stored = { wpm?: number; id?: string };
 
 // Reopens the item that was being read, so the reader screen picks up where it was left.
 async function load(): Promise<InitialReader> {
   await loadLibrary();
-  const [[, raw], [, legacyText]] = await AsyncStorage.multiGet([STORE_KEY, LEGACY_TEXT_KEY]);
-  const stored: Stored = JSON.parse(raw || 'null') || {};
-  let id = stored.id;
+  const stored: Stored = JSON.parse((await AsyncStorage.getItem(STORE_KEY)) || 'null') || {};
 
-  // Move a text saved by an older version into the library, once.
-  const text = legacyText ?? stored.text;
-  if (!id && text?.trim()) {
-    const item = await addToLibrary({ title: stored.label || titleFromText(text), text, kind: 'text', index: stored.index });
-    id = item?.id;
-    await AsyncStorage.setItem(STORE_KEY, JSON.stringify({ wpm: stored.wpm, id }));
-    await AsyncStorage.removeItem(LEGACY_TEXT_KEY);
-  }
-
-  const item = id ? getLibraryItem(id) : undefined;
+  const item = stored.id ? getLibraryItem(stored.id) : undefined;
   const itemText = item && (await readLibraryText(item.id));
   if (!item || !itemText) return { wpm: stored.wpm };
   return { wpm: stored.wpm, id: item.id, text: itemText, label: item.title, index: item.index };
