@@ -2,7 +2,7 @@
 // controls and speed at the bottom.
 import { useKeepAwake } from 'expo-keep-awake';
 import { router } from 'expo-router';
-import { memo, useEffect, useState, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -113,6 +113,20 @@ export default function ReaderScreen() {
       onConfirm: () => reader.seekTo(i),
     });
 
+  // Starting over throws away the reading position, so ask first (unless there's nothing to lose).
+  // Kept stable so Controls doesn't re-render per word.
+  const { restart } = reader;
+  const atStart = index === 0;
+  const confirmRestart = useCallback(() => {
+    if (atStart) return restart();
+    confirm({
+      title: 'Start over?',
+      message: 'This takes you back to the beginning and resets your progress.',
+      confirmText: 'Start over',
+      onConfirm: restart,
+    });
+  }, [atStart, restart]);
+
   return (
     <View style={[styles.screen, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 12 }]}>
       <ProgressHeader index={index} total={total} progress={progress} timeLeft={timeLeft} />
@@ -139,7 +153,7 @@ export default function ReaderScreen() {
         )}
       </View>
 
-      <Controls label={action.label} running={running} onAction={action.run} onRestart={reader.restart} />
+      <Controls label={action.label} running={running} onAction={action.run} onRestart={confirmRestart} />
 
       <View style={styles.slider}>
         <SpeedSlider value={wpm} onChange={reader.setWpm} />
