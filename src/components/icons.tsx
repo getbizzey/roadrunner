@@ -78,3 +78,9 @@ export const SearchIcon = ({ size = 20, color }: IconProps) => (
     <Path d="M10.5 18a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15zM16 16l5 5" />
   </Svg>
 );
+
+export const ChevronRightIcon = ({ size = 14, color }: IconProps) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.8} strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M9 5l7 7-7 7" />
+  </Svg>
+);
