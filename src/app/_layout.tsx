@@ -31,6 +31,7 @@ export default function RootLayout() {
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bgScreen } }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="insert" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="url" options={{ presentation: 'modal' }} />
           {/* iOS 26 turns on a full-screen back swipe by default. On the reader, horizontal drags
               belong to the speed slider and page turns, so only the edge swipe goes back. The
               native gesture claims the touch before JS sees it, so this can't be toggled per drag. */}

@@ -1,4 +1,4 @@
-// Library home: import a file, import a book, or insert text, and everything imported so far.
+// Library home: import a file, a book or a URL, or insert text, and everything imported so far.
 import { router } from 'expo-router';
 import Fuse from 'fuse.js';
 import { useCallback, useMemo, useRef, useState, type ComponentType } from 'react';
@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BooksIcon, CloseIcon, FileImportIcon, SearchIcon, TextLinesIcon, type IconProps } from '@/components/icons';
+import { BooksIcon, CloseIcon, FileImportIcon, LinkIcon, SearchIcon, TextLinesIcon, type IconProps } from '@/components/icons';
 import LibraryCard from '@/components/library-card';
 import TextExtractor from '@/components/text-extractor';
 import { colors, shadows } from '@/constants/theme';
@@ -83,7 +83,7 @@ export default function LibraryScreen() {
       const doc = await importDocument(kind, extractorRef.current!, setBusy);
       if (!doc) return;
       setBusy('Saving to your library…');
-      const item = await addToLibrary({ ...doc, kind });
+      const item = await addToLibrary(doc);
       if (!item || !reader.loadText(doc.text, item.title, { id: item.id })) {
         setError(kind === 'book' ? 'No text found in that book' : 'No text found in that file');
         return;
@@ -162,6 +162,7 @@ export default function LibraryScreen() {
       <View style={styles.tiles}>
         <Tile label={'Import\nFile'} Icon={FileImportIcon} onPress={() => importKind('file')} disabled={!!busy} />
         <Tile label={'Import\nBook'} Icon={BooksIcon} onPress={() => importKind('book')} disabled={!!busy} />
+        <Tile label={'Import\nURL'} Icon={LinkIcon} onPress={() => router.push('/url')} disabled={!!busy} />
         <Tile label={'Insert\nText'} Icon={TextLinesIcon} onPress={() => router.push('/insert')} disabled={!!busy} />
       </View>
 

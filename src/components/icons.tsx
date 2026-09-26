@@ -45,6 +45,14 @@ export const BooksIcon = ({ size = 26, color }: IconProps) => (
   </Svg>
 );
 
+// Two chain links: Import URL.
+export const LinkIcon = ({ size = 26, color }: IconProps) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" />
+    <Path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" />
+  </Svg>
+);
+
 // Left-aligned text lines: Insert Text.
 export const TextLinesIcon = ({ size = 26, color }: IconProps) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round">
