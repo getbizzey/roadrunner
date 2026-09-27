@@ -4,16 +4,26 @@ import { createContext, use, useEffect, useState, type ReactNode } from 'react';
 import { AccessibilityInfo, AppState } from 'react-native';
 
 import { SAMPLE_TEXT } from '@/constants/sample-text';
-import { useReader, type InitialReader, type Reader, type ReaderActions, type SavedReader } from '@/hooks/use-reader';
+import {
+  useReader,
+  type InitialReader,
+  type ReaderActions,
+  type ReaderPosition,
+  type ReaderState,
+  type SavedReader,
+} from '@/hooks/use-reader';
 import { getLibraryItem, loadLibrary, readLibraryText, updateProgress } from '@/lib/library';
 
 const STORE_KEY = 'roadrunner.reader';
-const ReaderContext = createContext<Reader | null>(null);
+const StateContext = createContext<ReaderState | null>(null);
+const PositionContext = createContext<ReaderPosition | null>(null);
 const ActionsContext = createContext<ReaderActions | null>(null);
 
-// Full reader state; components using it re-render on every word.
-export const useReaderContext = () => use(ReaderContext)!;
-// Only the actions, which stay the same between words: use this where state isn't needed.
+// Reader state that stays the same between words (text, speed, playing, countdown).
+export const useReaderState = () => use(StateContext)!;
+// The current word and progress; components using it re-render on every word, so keep them small.
+export const useReaderPosition = () => use(PositionContext)!;
+// Only the actions, which never change: use this where state isn't needed.
 export const useReaderActions = () => use(ActionsContext)!;
 
 // The speed and open item are saved here; the position goes to the item in the library.
@@ -40,18 +50,25 @@ async function load(): Promise<InitialReader> {
 type Boot = { initial: InitialReader; reduceMotion: boolean };
 
 function Provider({ initial, reduceMotion, children }: Boot & { children: ReactNode }) {
-  const reader = useReader({ sampleText: SAMPLE_TEXT, initial, onSave: save, countdownMs: reduceMotion ? 400 : 1000 });
+  const { state, position, actions } = useReader({
+    sampleText: SAMPLE_TEXT,
+    initial,
+    onSave: save,
+    countdownMs: reduceMotion ? 400 : 1000,
+  });
 
   // Pause when the app goes to the background.
-  const { pause } = reader;
+  const { pause } = actions;
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => state !== 'active' && pause());
     return () => sub.remove();
   }, [pause]);
 
   return (
-    <ActionsContext value={reader.actions}>
-      <ReaderContext value={reader}>{children}</ReaderContext>
+    <ActionsContext value={actions}>
+      <StateContext value={state}>
+        <PositionContext value={position}>{children}</PositionContext>
+      </StateContext>
     </ActionsContext>
   );
 }

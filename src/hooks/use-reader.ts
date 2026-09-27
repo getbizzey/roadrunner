@@ -189,22 +189,30 @@ export function useReader({ sampleText, initial = {}, onSave, countdownMs = 1000
   );
 
   const done = index >= words.length;
-  return {
-    words,
-    source,
-    index,
-    currentWord: words[Math.min(index, words.length - 1)] || '',
-    progress: words.length ? index / words.length : 0,
-    timeLeft: done ? 'Done' : formatDuration(secondsLeft(weightsFrom, index, wpm)) + ' left',
-    wpm,
-    playing,
-    held,
-    countdown,
-    status: held ? 'Paused' : status,
-    ...actions,
-    actions,
-  };
+  const atStart = index === 0;
+  const shownStatus = held ? 'Paused' : status;
+
+  // Changes every word, so only the few components that show the word or progress read it.
+  const position = useMemo(
+    () => ({
+      index,
+      currentWord: words[Math.min(index, words.length - 1)] || '',
+      progress: words.length ? index / words.length : 0,
+      timeLeft: done ? 'Done' : formatDuration(secondsLeft(weightsFrom, index, wpm)) + ' left',
+    }),
+    [index, words, weightsFrom, wpm, done]
+  );
+
+  // Everything else, which only changes when playback starts or stops, or the text or speed changes.
+  const state = useMemo(
+    () => ({ words, source, wpm, playing, held, countdown, status: shownStatus, atStart, done }),
+    [words, source, wpm, playing, held, countdown, shownStatus, atStart, done]
+  );
+
+  return { state, position, actions };
 }
 
 export type Reader = ReturnType<typeof useReader>;
+export type ReaderState = Reader['state'];
+export type ReaderPosition = Reader['position'];
 export type ReaderActions = Reader['actions'];

@@ -2,7 +2,7 @@
 // controls and speed at the bottom.
 import { useKeepAwake } from 'expo-keep-awake';
 import { router } from 'expo-router';
-import { memo, useCallback, useEffect, useState, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useState, type ComponentProps, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -11,7 +11,7 @@ import PageView from '@/components/page-view';
 import SpeedSlider from '@/components/speed-slider';
 import Stage from '@/components/stage';
 import { clamp, colors, shadows } from '@/constants/theme';
-import { useReaderContext } from '@/context/reader-context';
+import { useReaderActions, useReaderPosition, useReaderState } from '@/context/reader-context';
 import { confirm } from '@/lib/confirm';
 import { getLibraryItem } from '@/lib/library';
 import { formatNumber } from '@/lib/rsvp';
@@ -33,10 +33,9 @@ function CircleButton({ label, onPress, children }: { label: string; onPress: ()
 // Opened from a deep link or a web refresh there is nothing to go back to, so go home instead.
 const goBack = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
-type ProgressProps = { index: number; total: number; progress: number; timeLeft: string };
-
-// Word position and words left; tap to switch to percentage and time left.
-const ProgressHeader = memo(function ProgressHeader({ index, total, progress, timeLeft }: ProgressProps) {
+// Word position and words left; tap to switch to percentage and time left. Re-renders every word.
+const ProgressHeader = memo(function ProgressHeader({ total }: { total: number }) {
+  const { index, progress, timeLeft } = useReaderPosition();
   const [showTime, setShowTime] = useState(false);
   const left = showTime ? `${Math.round(progress * 100)}%` : formatNumber(Math.min(index + 1, total));
   const right = showTime ? timeLeft : `${formatNumber(total - Math.min(index, total))} left`;
@@ -58,6 +57,22 @@ const ProgressHeader = memo(function ProgressHeader({ index, total, progress, ti
     </Pressable>
   );
 });
+
+type StageProps = Omit<ComponentProps<typeof Stage>, 'word'>;
+
+// The stage showing the current word. Re-renders every word, so the screen around it doesn't.
+function CurrentStage(props: StageProps) {
+  const { currentWord } = useReaderPosition();
+  return <Stage word={currentWord} {...props} />;
+}
+
+type PageProps = Omit<ComponentProps<typeof PageView>, 'index'>;
+
+// The page at the current word, so seeking doesn't re-render the screen around it.
+function CurrentPage(props: PageProps) {
+  const { index } = useReaderPosition();
+  return <PageView index={index} {...props} />;
+}
 
 type ControlsProps = { label: string; running: boolean; onAction: () => void; onRestart: () => void };
 
@@ -81,8 +96,10 @@ const Controls = memo(function Controls({ label, running, onAction, onRestart }:
 });
 
 export default function ReaderScreen() {
-  const reader = useReaderContext();
-  const { words, index, progress, timeLeft, wpm, playing, countdown, status } = reader;
+  // Only state that changes when playback starts or stops: the word and progress are read by
+  // the components that show them, so this screen doesn't re-render on every word.
+  const { words, source, wpm, playing, countdown, status, atStart, done } = useReaderState();
+  const reader = useReaderActions();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   useKeepAwake();
@@ -94,15 +111,13 @@ export default function ReaderScreen() {
     cancelCountdown();
   }, [pause, cancelCountdown]);
 
-  const chapters = reader.source.id ? getLibraryItem(reader.source.id)?.chapters : undefined;
-  const total = words.length;
-  const done = index >= total;
+  const chapters = source.id ? getLibraryItem(source.id)?.chapters : undefined;
   const running = playing || countdown !== null;
 
   let action: { label: string; run: () => void };
   if (running) action = { label: 'Pause', run: countdown !== null ? reader.cancelCountdown : reader.pause };
   else if (done) action = { label: 'Read again', run: reader.startCountdown };
-  else if (index === 0) action = { label: "Let's Go!", run: reader.startCountdown };
+  else if (atStart) action = { label: "Let's Go!", run: reader.startCountdown };
   else action = { label: 'Continue', run: reader.play };
 
   const jumpTo = (i: number) =>
@@ -114,9 +129,7 @@ export default function ReaderScreen() {
     });
 
   // Starting over throws away the reading position, so ask first (unless there's nothing to lose).
-  // Kept stable so Controls doesn't re-render per word.
   const { restart } = reader;
-  const atStart = index === 0;
   const confirmRestart = useCallback(() => {
     if (atStart) return restart();
     confirm({
@@ -129,12 +142,11 @@ export default function ReaderScreen() {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 12 }]}>
-      <ProgressHeader index={index} total={total} progress={progress} timeLeft={timeLeft} />
+      <ProgressHeader total={words.length} />
 
       <View style={styles.middle}>
         {running ? (
-          <Stage
-            word={reader.currentWord}
+          <CurrentStage
             fontSize={clamp(52, width * 0.1, 116)}
             countdown={countdown}
             status={status}
@@ -144,10 +156,9 @@ export default function ReaderScreen() {
           />
         ) : (
           <View style={styles.pageWrap}>
-            <PageView
+            <CurrentPage
               words={words}
-              index={index}
-              title={reader.source.id ? reader.source.label : undefined}
+              title={source.id ? source.label : undefined}
               chapters={chapters}
               onWordPress={jumpTo}
             />
