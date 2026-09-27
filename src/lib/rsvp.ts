@@ -17,7 +17,7 @@ export function clampWpm(v: number): number {
   return Math.max(WPM_MIN, Math.min(WPM_MAX, Math.round(v / WPM_STEP) * WPM_STEP));
 }
 
-// The optimal recognition point: the letter the eye should land on.
+// The optimal recognition point: the letter the eye should land on, counted in letters.
 export function focalLetterIndex(wordLength: number): number {
   if (wordLength <= 1) return 0;
   if (wordLength <= 5) return 1;
@@ -26,40 +26,69 @@ export function focalLetterIndex(wordLength: number): number {
   return 4;
 }
 
+// Quotes, brackets and punctuation around a word. They're not part of what the eye reads, so the
+// focal letter and a word's length are counted without them.
+const WRAP = new Set('"\'“”‘’„«»‹›()[]{}<>¿¡.,;:!?…—–-*_');
+
+// Where the word's letters start and end, without the wrapping around them. A word that is
+// nothing but punctuation ("—") is all core.
+function core(word: string) {
+  let start = 0;
+  let end = word.length;
+  while (start < end && WRAP.has(word[start])) start++;
+  while (end > start && WRAP.has(word[end - 1])) end--;
+  return start < end ? { start, end } : { start: 0, end: word.length };
+}
+
 export function splitWord(word: string) {
-  const i = focalLetterIndex(word.length);
+  const { start, end } = core(word);
+  const i = start + focalLetterIndex(end - start);
   return { before: word.slice(0, i), focal: word[i] ?? '', after: word.slice(i + 1) };
 }
 
-const QUOTE_STRIP_RE = /^["'“”‘’(\[]+|["'“”‘’)\]]+$/g;
-const PUNCT_RE = /[.!?,;:]$/;
+const CLOSE_RE = /["'“”‘’»›)\]}]+$/;
+const SENTENCE_END_RE = /[.!?…]$/;
+// How much longer a word ending a sentence stays up. Nothing else pauses.
+const SENTENCE_PAUSE = 1.5;
 
-// How many "beats" (60 / wpm seconds) a word stays up: longer words and words ending a
-// clause stay up longer.
+// How many beats a word stays up relative to others: longer words stay up longer, and a word
+// ending a sentence a little longer still. Not yet scaled to the text (see buildWeights).
 export function wordWeight(word: string): number {
-  const stripped = word.replace(QUOTE_STRIP_RE, '');
-  const n = stripped.length;
+  const { start, end } = core(word);
+  const n = end - start;
   const lengthFactor = n <= 2 ? 0.7 : n <= 5 ? 1.0 : n <= 8 ? 1.3 : n <= 12 ? 1.6 : 2.0;
-  return PUNCT_RE.test(stripped) ? lengthFactor * 2 : lengthFactor;
+  return SENTENCE_END_RE.test(word.replace(CLOSE_RE, '')) ? lengthFactor * SENTENCE_PAUSE : lengthFactor;
 }
 
-// Seconds to show a word, as a whole number of frames. A word can only be on screen for whole
-// frames, so a fractional interval (3.6 frames at 1000 wpm) would show equal words for 3 frames,
-// then 4, in an uneven rhythm that reads as stutter at high speeds.
-export function intervalForWord(word: string, wpm: number): number {
-  return Math.max(1, Math.round(((60 / wpm) * wordWeight(word)) / FRAME)) * FRAME;
+// Each word's weight, scaled so they average 1. That way a text of N words takes N minutes / wpm,
+// so the speed shown is the speed read: unscaled, the pauses and long words make the real speed
+// slower than the one set.
+export function buildWeights(words: string[]): Float64Array {
+  const out = new Float64Array(words.length);
+  let sum = 0;
+  for (let i = 0; i < words.length; i++) sum += out[i] = wordWeight(words[i]);
+  const mean = sum / words.length;
+  for (let i = 0; i < out.length; i++) out[i] /= mean;
+  return out;
+}
+
+// Seconds to show a word of the given weight, as a whole number of frames. A word can only be on
+// screen for whole frames, so a fractional interval (3.6 frames at 1000 wpm) would show equal
+// words for 3 frames, then 4, in an uneven rhythm that reads as stutter at high speeds.
+export function intervalFor(weight: number, wpm: number): number {
+  return Math.max(1, Math.round(((60 / wpm) * weight) / FRAME)) * FRAME;
 }
 
 // weightsFrom[i] = total weight of words i..end, so time left is a lookup, not a scan.
 // Built once per text.
-export function buildWeightsFrom(words: string[]): Float64Array {
-  const out = new Float64Array(words.length + 1);
-  for (let i = words.length - 1; i >= 0; i--) out[i] = out[i + 1] + wordWeight(words[i]);
+export function buildWeightsFrom(weights: Float64Array): Float64Array {
+  const out = new Float64Array(weights.length + 1);
+  for (let i = weights.length - 1; i >= 0; i--) out[i] = out[i + 1] + weights[i];
   return out;
 }
 
-// Seconds left from word `from`. Leaves out the rounding to whole frames: within 2% up to
-// 600 wpm, and up to 7% short at WPM_MAX.
+// Seconds left from word `from`. Leaves out the rounding to whole frames, which evens out over a
+// text's mix of word lengths.
 export function secondsLeft(weightsFrom: Float64Array, from: number, wpm: number): number {
   return (weightsFrom[Math.min(from, weightsFrom.length - 1)] * 60) / wpm;
 }

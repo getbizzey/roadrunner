@@ -3,10 +3,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   WPM_DEFAULT,
+  buildWeights,
   buildWeightsFrom,
   clampWpm,
   formatDuration,
-  intervalForWord,
+  intervalFor,
   secondsLeft,
   tokenize,
 } from '@/lib/rsvp';
@@ -56,7 +57,8 @@ export function useReader({ sampleText, initial = {}, onSave, countdownMs = 1000
   const [status, setStatus] = useState('');
 
   const { words } = source;
-  const weightsFrom = useMemo(() => buildWeightsFrom(words), [words]);
+  const weights = useMemo(() => buildWeights(words), [words]);
+  const weightsFrom = useMemo(() => buildWeightsFrom(weights), [weights]);
   // When word `index` was due to appear, so timing follows the schedule rather than render speed.
   const scheduled = useRef<{ index: number; at: number } | null>(null);
   const wpmRef = useRef(wpm);
@@ -77,14 +79,14 @@ export function useReader({ sampleText, initial = {}, onSave, countdownMs = 1000
     const now = performance.now();
     const due = scheduled.current;
     const start = due && due.index === index && now - due.at < MAX_CATCH_UP_MS ? due.at : now;
-    const end = start + intervalForWord(words[index], wpmRef.current) * 1000;
+    const end = start + intervalFor(weights[index], wpmRef.current) * 1000;
     const t = setTimeout(() => {
       scheduled.current = { index: index + 1, at: end };
       setIndex(index + 1);
       if (index + 1 >= words.length) setPlaying(false);
     }, Math.max(0, end - now));
     return () => clearTimeout(t);
-  }, [playing, held, index, words]);
+  }, [playing, held, index, words, weights]);
 
   // ── Actions ──
   const play = useCallback(() => {
