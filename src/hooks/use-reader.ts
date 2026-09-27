@@ -9,7 +9,7 @@ import {
   formatDuration,
   intervalFor,
   secondsLeft,
-  tokenize,
+  tokenizeParagraphs,
 } from '@/lib/rsvp';
 
 // After a stall longer than this (app in background, long GC), timing restarts from now
@@ -21,7 +21,7 @@ export type InitialReader = { wpm?: number; id?: string; text?: string; label?: 
 /** What is persisted: the speed, and which library item is open and where. */
 export type SavedReader = { wpm: number; id?: string; index?: number };
 
-type Source = { words: string[]; text: string; label: string; isSample: boolean; id?: string };
+type Source = { words: string[]; paragraphEnds: Set<number>; text: string; label: string; isSample: boolean; id?: string };
 
 type Options = {
   /** Shown when nothing else is loaded. */
@@ -38,7 +38,7 @@ export function useReader({ sampleText, initial = {}, onSave, countdownMs = 1000
   const [source, setSource] = useState<Source>(() => {
     const text = initial.text?.trim() ? initial.text : null;
     return {
-      words: tokenize(text ?? sampleText),
+      ...tokenizeParagraphs(text ?? sampleText),
       text: (text ?? sampleText).trim(),
       label: text ? initial.label || 'Pasted' : 'Demo',
       isSample: !text,
@@ -56,8 +56,8 @@ export function useReader({ sampleText, initial = {}, onSave, countdownMs = 1000
   const [held, setHeld] = useState(false);
   const [status, setStatus] = useState('');
 
-  const { words } = source;
-  const weights = useMemo(() => buildWeights(words), [words]);
+  const { words, paragraphEnds } = source;
+  const weights = useMemo(() => buildWeights(words, paragraphEnds), [words, paragraphEnds]);
   const weightsFrom = useMemo(() => buildWeightsFrom(weights), [weights]);
   // When word `index` was due to appear, so timing follows the schedule rather than render speed,
   // and the frame rounding carried over from the word before it (see intervalFor).
@@ -174,12 +174,12 @@ export function useReader({ sampleText, initial = {}, onSave, countdownMs = 1000
   // Returns false when the text has no words. `id` is the library item it came from, whose
   // position is saved as it's read; `index` is where to resume.
   const loadText = useCallback((text: string, label: string, { sample = false, id = undefined as string | undefined, index = 0 } = {}) => {
-    const w = tokenize(text);
+    const { words: w, paragraphEnds } = tokenizeParagraphs(text);
     if (!w.length) return false;
     setPlaying(false);
     setHeld(false);
     setCountdown(null);
-    setSource({ words: w, text: text.trim(), label, isSample: sample, id });
+    setSource({ words: w, paragraphEnds, text: text.trim(), label, isSample: sample, id });
     setIndex(index > 0 && index < w.length ? index : 0);
     setStatus('');
     return true;

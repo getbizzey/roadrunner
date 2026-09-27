@@ -16,8 +16,10 @@ export const EXTRACTOR_SOURCE = `
     var doc = new DOMParser().parseFromString(html, 'text/html');
     doc.querySelectorAll('script, style, noscript, nav, header, footer, aside').forEach(function (n) { n.remove(); });
     // A parsed document isn't rendered, so innerText adds no line breaks: add them after blocks.
-    doc.querySelectorAll('p, br, div, li, dt, dd, h1, h2, h3, h4, h5, h6, blockquote, pre, section, article, tr, figcaption')
-      .forEach(function (n) { n.append('\\n'); });
+    // Blocks get a blank line, which the reader pauses on as a paragraph end; a line break doesn't.
+    doc.querySelectorAll('br').forEach(function (n) { n.append('\\n'); });
+    doc.querySelectorAll('p, div, li, dt, dd, h1, h2, h3, h4, h5, h6, blockquote, pre, section, article, tr, figcaption')
+      .forEach(function (n) { n.append('\\n\\n'); });
     var root = doc.querySelector('article, main') || doc.body;
     return (root && root.textContent) || '';
   }

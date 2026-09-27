@@ -13,6 +13,21 @@ export function tokenize(text: string): string[] {
   return text.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
 }
 
+// The same words as tokenize, plus which of them end a paragraph (a blank line follows). A single
+// line break isn't enough: PDF text breaks after every line.
+export function tokenizeParagraphs(text: string): { words: string[]; paragraphEnds: Set<number> } {
+  const words: string[] = [];
+  const paragraphEnds = new Set<number>();
+  for (const paragraph of text.split(/\n\s*\n/)) {
+    const w = tokenize(paragraph);
+    if (!w.length) continue;
+    words.push(...w);
+    paragraphEnds.add(words.length - 1);
+  }
+  paragraphEnds.delete(words.length - 1);
+  return { words, paragraphEnds };
+}
+
 export function clampWpm(v: number): number {
   return Math.max(WPM_MIN, Math.min(WPM_MAX, Math.round(v / WPM_STEP) * WPM_STEP));
 }
@@ -48,25 +63,38 @@ export function splitWord(word: string) {
 
 const CLOSE_RE = /["'“”‘’»›)\]}]+$/;
 const SENTENCE_END_RE = /[.!?…]$/;
-// How much longer a word ending a sentence stays up. Nothing else pauses.
-const SENTENCE_PAUSE = 1.5;
+const CLAUSE_END_RE = /(?:[,;:—–]|--)$/;
+// How much longer a word stays up when a pause follows it: the reader takes in the clause,
+// sentence or paragraph it closes. Only the largest applies.
+const CLAUSE_PAUSE = 1.3;
+const SENTENCE_PAUSE = 2.0;
+const PARAGRAPH_PAUSE = 2.75;
 
-// How many beats a word stays up relative to others: longer words stay up longer, and a word
-// ending a sentence a little longer still. Not yet scaled to the text (see buildWeights).
-export function wordWeight(word: string): number {
+// How many beats a word stays up relative to others: longer words stay up a little longer, and a
+// word closing a clause, sentence or paragraph longer still. Not yet scaled to the text (see
+// buildWeights).
+export function wordWeight(word: string, endsParagraph = false): number {
   const { start, end } = core(word);
   const n = end - start;
-  const lengthFactor = n <= 2 ? 0.7 : n <= 5 ? 1.0 : n <= 8 ? 1.3 : n <= 12 ? 1.6 : 2.0;
-  return SENTENCE_END_RE.test(word.replace(CLOSE_RE, '')) ? lengthFactor * SENTENCE_PAUSE : lengthFactor;
+  const lengthFactor = n <= 2 ? 0.85 : n <= 5 ? 1.0 : n <= 8 ? 1.15 : n <= 12 ? 1.3 : 1.5;
+  const bare = word.replace(CLOSE_RE, '');
+  const pause = endsParagraph
+    ? PARAGRAPH_PAUSE
+    : SENTENCE_END_RE.test(bare)
+      ? SENTENCE_PAUSE
+      : CLAUSE_END_RE.test(bare)
+        ? CLAUSE_PAUSE
+        : 1;
+  return lengthFactor * pause;
 }
 
 // Each word's weight, scaled so they average 1. That way a text of N words takes N minutes / wpm,
 // so the speed shown is the speed read: unscaled, the pauses and long words make the real speed
 // slower than the one set.
-export function buildWeights(words: string[]): Float64Array {
+export function buildWeights(words: string[], paragraphEnds: Set<number> = new Set()): Float64Array {
   const out = new Float64Array(words.length);
   let sum = 0;
-  for (let i = 0; i < words.length; i++) sum += out[i] = wordWeight(words[i]);
+  for (let i = 0; i < words.length; i++) sum += out[i] = wordWeight(words[i], paragraphEnds.has(i));
   const mean = sum / words.length;
   for (let i = 0; i < out.length; i++) out[i] /= mean;
   return out;
