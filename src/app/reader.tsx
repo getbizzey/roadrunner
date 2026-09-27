@@ -1,11 +1,13 @@
 // Reader: progress on top, the page (paused) or the RSVP stage (playing) in the middle,
 // controls and speed at the bottom.
+import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
 import { router } from 'expo-router';
-import { memo, useCallback, useEffect, useState, type ComponentProps, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import Confetti from '@/components/confetti';
 import { ArrowLeftIcon, ArrowRightIcon, PauseIcon, RestartIcon } from '@/components/icons';
 import PageView from '@/components/page-view';
 import SpeedSlider from '@/components/speed-slider';
@@ -111,6 +113,18 @@ export default function ReaderScreen() {
     cancelCountdown();
   }, [pause, cancelCountdown]);
 
+  // Celebrate reaching the last word, but only as it happens, not when opening a finished text.
+  const [celebration, setCelebration] = useState(0);
+  const wasDone = useRef(done);
+  useEffect(() => {
+    if (done && !wasDone.current) {
+      setCelebration((c) => c + 1);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+    wasDone.current = done;
+  }, [done]);
+  const endCelebration = useCallback(() => setCelebration(0), []);
+
   const chapters = source.id ? getLibraryItem(source.id)?.chapters : undefined;
   const running = playing || countdown !== null;
 
@@ -171,6 +185,8 @@ export default function ReaderScreen() {
       <View style={styles.slider}>
         <SpeedSlider value={wpm} onChange={reader.setWpm} />
       </View>
+
+      {celebration > 0 && <Confetti key={celebration} onDone={endCelebration} />}
     </View>
   );
 }
