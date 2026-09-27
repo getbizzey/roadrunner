@@ -6,7 +6,8 @@ export const WPM_MIN = 100;
 export const WPM_MAX = 1000;
 export const WPM_STEP = 10;
 export const WPM_DEFAULT = 250;
-const MIN_INTERVAL = 0.03; // seconds
+// The screen only changes once a frame (60 Hz; 120 Hz screens divide it evenly).
+const FRAME = 1 / 60; // seconds
 
 export function tokenize(text: string): string[] {
   return text.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
@@ -42,9 +43,11 @@ export function wordWeight(word: string): number {
   return PUNCT_RE.test(stripped) ? lengthFactor * 2 : lengthFactor;
 }
 
-// Seconds to show a word.
+// Seconds to show a word, as a whole number of frames. A word can only be on screen for whole
+// frames, so a fractional interval (3.6 frames at 1000 wpm) would show equal words for 3 frames,
+// then 4, in an uneven rhythm that reads as stutter at high speeds.
 export function intervalForWord(word: string, wpm: number): number {
-  return Math.max((60 / wpm) * wordWeight(word), MIN_INTERVAL);
+  return Math.max(1, Math.round(((60 / wpm) * wordWeight(word)) / FRAME)) * FRAME;
 }
 
 // weightsFrom[i] = total weight of words i..end, so time left is a lookup, not a scan.
@@ -55,8 +58,8 @@ export function buildWeightsFrom(words: string[]): Float64Array {
   return out;
 }
 
-// Seconds left from word `from`. Exact within the slider's range: the shortest weight (0.7)
-// at WPM_MAX gives 0.042 s, above MIN_INTERVAL, so the clamp never applies.
+// Seconds left from word `from`. Leaves out the rounding to whole frames: within 2% up to
+// 600 wpm, and up to 7% short at WPM_MAX.
 export function secondsLeft(weightsFrom: Float64Array, from: number, wpm: number): number {
   return (weightsFrom[Math.min(from, weightsFrom.length - 1)] * 60) / wpm;
 }
