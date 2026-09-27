@@ -75,8 +75,12 @@ export function buildWeights(words: string[]): Float64Array {
 // Seconds to show a word of the given weight, as a whole number of frames. A word can only be on
 // screen for whole frames, so a fractional interval (3.6 frames at 1000 wpm) would show equal
 // words for 3 frames, then 4, in an uneven rhythm that reads as stutter at high speeds.
-export function intervalFor(weight: number, wpm: number): number {
-  return Math.max(1, Math.round(((60 / wpm) * weight) / FRAME)) * FRAME;
+// Rounding alone drifts from the set speed (1000 wpm reads at ~1100), so the frames rounded off
+// one word are carried into the next: `carry` in, the new remainder out, both in frames.
+export function intervalFor(weight: number, wpm: number, carry = 0): { seconds: number; carry: number } {
+  const exact = ((60 / wpm) * weight) / FRAME + carry;
+  const frames = Math.max(1, Math.round(exact));
+  return { seconds: frames * FRAME, carry: exact - frames };
 }
 
 // weightsFrom[i] = total weight of words i..end, so time left is a lookup, not a scan.
@@ -87,8 +91,8 @@ export function buildWeightsFrom(weights: Float64Array): Float64Array {
   return out;
 }
 
-// Seconds left from word `from`. Leaves out the rounding to whole frames, which evens out over a
-// text's mix of word lengths.
+// Seconds left from word `from`. Leaves out the rounding to whole frames, which intervalFor
+// carries forward so it evens out.
 export function secondsLeft(weightsFrom: Float64Array, from: number, wpm: number): number {
   return (weightsFrom[Math.min(from, weightsFrom.length - 1)] * 60) / wpm;
 }

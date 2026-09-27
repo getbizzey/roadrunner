@@ -59,8 +59,9 @@ export function useReader({ sampleText, initial = {}, onSave, countdownMs = 1000
   const { words } = source;
   const weights = useMemo(() => buildWeights(words), [words]);
   const weightsFrom = useMemo(() => buildWeightsFrom(weights), [weights]);
-  // When word `index` was due to appear, so timing follows the schedule rather than render speed.
-  const scheduled = useRef<{ index: number; at: number } | null>(null);
+  // When word `index` was due to appear, so timing follows the schedule rather than render speed,
+  // and the frame rounding carried over from the word before it (see intervalFor).
+  const scheduled = useRef<{ index: number; at: number; carry: number } | null>(null);
   const wpmRef = useRef(wpm);
   const playingRef = useRef(playing);
   const onSaveRef = useRef(onSave);
@@ -78,10 +79,17 @@ export function useReader({ sampleText, initial = {}, onSave, countdownMs = 1000
     // restart the current word.
     const now = performance.now();
     const due = scheduled.current;
-    const start = due && due.index === index && now - due.at < MAX_CATCH_UP_MS ? due.at : now;
-    const end = start + intervalFor(weights[index], wpmRef.current) * 1000;
+    const onSchedule = due && due.index === index && now - due.at < MAX_CATCH_UP_MS;
+    let { seconds, carry } = intervalFor(weights[index], wpmRef.current, onSchedule ? due.carry : 0);
+    let end = (onSchedule ? due.at : now) + seconds * 1000;
+    // Already over (a short stall): start the word now. Otherwise the next word would start in the
+    // past too, and words would flash by unseen until the schedule caught up.
+    if (end <= now) {
+      ({ seconds, carry } = intervalFor(weights[index], wpmRef.current));
+      end = now + seconds * 1000;
+    }
     const t = setTimeout(() => {
-      scheduled.current = { index: index + 1, at: end };
+      scheduled.current = { index: index + 1, at: end, carry };
       setIndex(index + 1);
       if (index + 1 >= words.length) setPlaying(false);
     }, Math.max(0, end - now));
