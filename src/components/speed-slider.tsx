@@ -1,5 +1,6 @@
 // Speed slider: a dark track with a tick every 100 wpm and a pill thumb showing the speed.
-// While dragging, a larger readout floats above the thumb.
+// While dragging, a larger readout floats above the thumb and each step clicks with a haptic.
+import * as Haptics from 'expo-haptics';
 import { memo, useRef, useState } from 'react';
 import { StyleSheet, Text, View, type GestureResponderEvent, type ViewProps } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
@@ -23,7 +24,12 @@ export default memo(function SpeedSlider({ value, onChange }: Props) {
   const update = (pageX: number) => {
     if (!travel) return;
     const pct = Math.max(0, Math.min(1, (pageX - trackPageX.current - THUMB_W / 2) / travel));
-    onChange(WPM_MIN + Math.round((pct * (WPM_MAX - WPM_MIN)) / WPM_STEP) * WPM_STEP);
+    const next = WPM_MIN + Math.round((pct * (WPM_MAX - WPM_MIN)) / WPM_STEP) * WPM_STEP;
+    if (next === value) return;
+    // A firmer bump on the 100 wpm tick marks, a light click on every step in between.
+    if (next % 100 === 0) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    else Haptics.selectionAsync();
+    onChange(next);
   };
 
   const responder: ViewProps = {
